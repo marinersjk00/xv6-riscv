@@ -28,6 +28,15 @@ sys_fork(void)
 }
 
 uint64
+sys_clone(void) //edited
+{
+  uint64 addr;
+  addr = myproc()->kstack;
+  argaddr(0, &addr);
+  return clone((void*)addr);
+}
+
+uint64
 sys_wait(void)
 {
   uint64 p;
