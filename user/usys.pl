@@ -16,6 +16,8 @@ sub entry {
 }
 	
 entry("fork");
+
+entry("clone"); # //edited
 entry("exit");
 entry("wait");
 entry("pipe");
