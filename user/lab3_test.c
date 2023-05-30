@@ -2,7 +2,7 @@
 #include "kernel/types.h"
 #include "user/thread.h"
 #include "user/user.h"
-lock_t lock;
+struct lock_t lock;
 int n_threads, n_passes, cur_turn, cur_pass;
 void *thread_fn(void *arg) {
   int thread_id = (uint64)arg;
@@ -22,6 +22,7 @@ void *thread_fn(void *arg) {
   return 0;
 }
 int main(int argc, char *argv[]) {
+  printf("Function called!");
   if (argc < 3) {
     printf("Usage: %s [N_PASSES] [N_THREADS]\n", argv[0]);
     exit(-1);
