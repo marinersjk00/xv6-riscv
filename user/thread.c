@@ -26,8 +26,8 @@ void lock_init(struct lock_t* lock){
 
 void lock_acquire(struct lock_t* lock){
     
-    while(__sync_lock_test_and_set(&lock->locked, 1) != 0)
-    ;
+  //  while(__sync_lock_test_and_set(&lock->locked, 1) != 0)
+   // ;
 
     __sync_synchronize();
 

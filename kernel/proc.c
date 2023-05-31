@@ -11,7 +11,7 @@ struct cpu cpus[NCPU];
 struct proc proc[NPROC];
 
 struct proc *initproc;
-
+int threadCounter = 1;
 int nextpid = 1;
 struct spinlock pid_lock;
 
@@ -110,7 +110,7 @@ static struct proc*
 allocproc(void)
 {
   struct proc *p;
-  
+
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == UNUSED) {
@@ -119,7 +119,6 @@ allocproc(void)
       release(&p->lock);
     }
   }
-  p->thread_id = 0;
   return 0;
 
 found:
@@ -149,7 +148,6 @@ found:
 
   return p;
 }
-
 // free a proc structure and the data hanging from it,
 // including user pages.
 // p->lock must be held.
@@ -178,6 +176,8 @@ freeproc(struct proc *p)
   p->state = UNUSED;
 }
 
+
+
 // Create a user page table for a given process, with no user memory,
 // but with trampoline and trapframe pages.
 pagetable_t
@@ -194,18 +194,28 @@ proc_pagetable(struct proc *p)
   // at the highest user virtual address.
   // only the supervisor uses it, on the way
   // to/from user space, so not PTE_U.
-    if(mappages(pagetable, TRAMPOLINE, PGSIZE,
-                (uint64)trampoline, PTE_R | PTE_X) < 0){
-      uvmfree(pagetable, 0);
-      return 0;
-    }
-  
+  printf("Error location 1!");
+  if(mappages(pagetable, TRAMPOLINE, PGSIZE,
+              (uint64)trampoline, PTE_R | PTE_X) < 0){
+    uvmfree(pagetable, 0);
+    return 0;
+  }
+
+    printf("Error location 2!");
+
 
   // map the trapframe page just below the trampoline page, for
   // trampoline.S.
-
+  if(mappages(pagetable, TRAPFRAME, PGSIZE,
+              (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
+    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    uvmfree(pagetable, 0);
+    return 0;
+  }
+printf("Error location 3!");
   return pagetable;
 }
+
 
 // Free a process's page table, and free the
 // physical memory it refers to.
@@ -371,6 +381,7 @@ clone(void* stack)
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
+  p->globalThreadCount = 1;
 
   // Allocate process.
   if((np = allocproc_thread()) == 0){
@@ -384,8 +395,8 @@ clone(void* stack)
     np->trapframe->sp = (uint64)stack;
     np->pagetable = p->pagetable;
   np->sz = p->sz;
-
-  if(mappages(np->pagetable, TRAPFRAME - (PGSIZE * np->thread_id), PGSIZE,
+  
+    if(mappages(np->pagetable, TRAPFRAME - (PGSIZE * np->thread_id), PGSIZE,
               (uint64)(np->trapframe), PTE_R | PTE_W) < 0){
     uvmunmap(np->pagetable, TRAMPOLINE, 1, 0);
     uvmfree(np->pagetable, 0);
@@ -408,7 +419,9 @@ clone(void* stack)
 
   pid = np->pid;
   //add counter!!!!!!!!
-    np->thread_id = p->thread_id; //thread_id for children
+    np->thread_id = p->globalThreadCount++; //thread_id for children
+     
+
   
 
   release(&np->lock);

@@ -22,7 +22,6 @@ void *thread_fn(void *arg) {
   return 0;
 }
 int main(int argc, char *argv[]) {
-  printf("Function called!");
   if (argc < 3) {
     printf("Usage: %s [N_PASSES] [N_THREADS]\n", argv[0]);
     exit(-1);
