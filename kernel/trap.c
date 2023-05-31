@@ -128,7 +128,7 @@ usertrapret(void)
   uint64 trampoline_userret = TRAMPOLINE + (userret - trampoline);
 
   if(p->thread_id == 0) ((void (*)(uint64,uint64))trampoline_userret)(TRAPFRAME, satp);
-  else ((void (*)(uint64,uint64))trampoline_userret)(TRAPFRAME - PGSIZE * p->thread_id, satp);
+  else ((void (*)(uint64,uint64))trampoline_userret)(TRAPFRAME - (PGSIZE * p->thread_id), satp);
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,

@@ -11,7 +11,7 @@ struct cpu cpus[NCPU];
 struct proc proc[NPROC];
 
 struct proc *initproc;
-int threadCounter = 1;
+int threadCounter = 0;
 int nextpid = 1;
 struct spinlock pid_lock;
 
@@ -194,25 +194,22 @@ proc_pagetable(struct proc *p)
   // at the highest user virtual address.
   // only the supervisor uses it, on the way
   // to/from user space, so not PTE_U.
-  printf("Error location 1!");
   if(mappages(pagetable, TRAMPOLINE, PGSIZE,
               (uint64)trampoline, PTE_R | PTE_X) < 0){
     uvmfree(pagetable, 0);
     return 0;
   }
 
-    printf("Error location 2!");
 
 
   // map the trapframe page just below the trampoline page, for
   // trampoline.S.
-  if(mappages(pagetable, TRAPFRAME, PGSIZE,
+  if(mappages(pagetable, TRAPFRAME - (PGSIZE * p->thread_id), PGSIZE,
               (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmfree(pagetable, 0);
     return 0;
   }
-printf("Error location 3!");
   return pagetable;
 }
 
@@ -381,7 +378,6 @@ clone(void* stack)
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
-  p->globalThreadCount = 1;
 
   // Allocate process.
   if((np = allocproc_thread()) == 0){
@@ -396,12 +392,12 @@ clone(void* stack)
     np->pagetable = p->pagetable;
   np->sz = p->sz;
   
-    if(mappages(np->pagetable, TRAPFRAME - (PGSIZE * np->thread_id), PGSIZE,
+   /* if(mappages(np->pagetable, TRAPFRAME - (PGSIZE * np->thread_id), PGSIZE,
               (uint64)(np->trapframe), PTE_R | PTE_W) < 0){
     uvmunmap(np->pagetable, TRAMPOLINE, 1, 0);
     uvmfree(np->pagetable, 0);
     return -1;
-  }
+  } */
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -419,8 +415,8 @@ clone(void* stack)
 
   pid = np->pid;
   //add counter!!!!!!!!
-    np->thread_id = p->globalThreadCount++; //thread_id for children
-     
+    np->thread_id = threadCounter; //thread_id for children
+     threadCounter = threadCounter + 1;
 
   
 
@@ -433,7 +429,7 @@ clone(void* stack)
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
-
+  if(p->thread_id == 0) return 0;
   return pid;
 }
 // Pass p's abandoned children to init.

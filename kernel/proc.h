@@ -92,7 +92,6 @@ struct proc {
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
   int thread_id; //thread id for clone
-  int globalThreadCount;
 
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process
