@@ -48,7 +48,7 @@ void
 procinit(void)
 {
   struct proc *p;
-  
+  printf("Called proc init\n");
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
@@ -56,6 +56,7 @@ procinit(void)
       p->state = UNUSED;
       p->kstack = KSTACK((int) (p - proc));
   }
+  printf("end of proc init\n");
 }
 
 // Must be called with interrupts disabled,
@@ -110,7 +111,7 @@ static struct proc*
 allocproc(void)
 {
   struct proc *p;
-
+  printf("Called allocproc\n");
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == UNUSED) {
@@ -119,9 +120,14 @@ allocproc(void)
       release(&p->lock);
     }
   }
+  printf("Could not find unused proc, returning 0\n");
   return 0;
+    printf("After for loop allocproc\n");
+
 
 found:
+  printf("In found: allocproc\n");
+
   p->pid = allocpid();
   p->state = USED;
 
@@ -129,22 +135,34 @@ found:
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
     release(&p->lock);
+        printf("Couldn't allocate trapframe, returning 0\n");
+
     return 0;
   }
+
+    printf("trapframe allocated allocproc\n");
+
 
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
     freeproc(p);
     release(&p->lock);
+            printf("Couldn't allocate pagetable, returning 0\n");
+
     return 0;
   }
+
+    printf("pagetable allocated allocproc\n");
+
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+    printf("Context set allocproc\n");
+
 
   return p;
 }
@@ -204,12 +222,7 @@ proc_pagetable(struct proc *p)
 
   // map the trapframe page just below the trampoline page, for
   // trampoline.S.
-  if(mappages(pagetable, TRAPFRAME - (PGSIZE * p->thread_id), PGSIZE,
-              (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
-    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
-    uvmfree(pagetable, 0);
-    return 0;
-  }
+ 
   return pagetable;
 }
 
@@ -392,12 +405,12 @@ clone(void* stack)
     np->pagetable = p->pagetable;
   np->sz = p->sz;
   
-   /* if(mappages(np->pagetable, TRAPFRAME - (PGSIZE * np->thread_id), PGSIZE,
+    if(mappages(np->pagetable, TRAPFRAME - (PGSIZE * np->thread_id), PGSIZE,
               (uint64)(np->trapframe), PTE_R | PTE_W) < 0){
     uvmunmap(np->pagetable, TRAMPOLINE, 1, 0);
     uvmfree(np->pagetable, 0);
     return -1;
-  } */
+  } 
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
