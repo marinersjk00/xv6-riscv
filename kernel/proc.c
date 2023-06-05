@@ -11,7 +11,9 @@ struct cpu cpus[NCPU];
 struct proc proc[NPROC];
 
 struct proc *initproc;
-int threadCounter = 0;
+
+// Thread counter begins at 1 because the parent process is also a thread.
+int threadCounter = 1;
 int nextpid = 1;
 struct spinlock pid_lock;
 
@@ -48,7 +50,6 @@ void
 procinit(void)
 {
   struct proc *p;
-  printf("Called proc init\n");
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
@@ -56,7 +57,6 @@ procinit(void)
       p->state = UNUSED;
       p->kstack = KSTACK((int) (p - proc));
   }
-  printf("end of proc init\n");
 }
 
 // Must be called with interrupts disabled,
@@ -111,7 +111,6 @@ static struct proc*
 allocproc(void)
 {
   struct proc *p;
-  printf("Called allocproc\n");
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == UNUSED) {
@@ -124,9 +123,7 @@ allocproc(void)
   return 0;
     printf("After for loop allocproc\n");
 
-
 found:
-  printf("In found: allocproc\n");
 
   p->pid = allocpid();
   p->state = USED;
@@ -140,9 +137,6 @@ found:
     return 0;
   }
 
-    printf("trapframe allocated allocproc\n");
-
-
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -153,16 +147,12 @@ found:
     return 0;
   }
 
-    printf("pagetable allocated allocproc\n");
-
-
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-    printf("Context set allocproc\n");
-
+  p->thread_id = 0;
 
   return p;
 }
@@ -172,16 +162,20 @@ found:
 static void
 freeproc(struct proc *p)
 {
-  if(p->trapframe)
+  if (p->trapframe) {
     kfree((void*)p->trapframe);
+  }
   p->trapframe = 0;
-  if(p->thread_id ==0)
-  {
-      if(p->pagetable)
+  if (p->thread_id == 0) {
+    if(p->pagetable) {
       proc_freepagetable(p->pagetable, p->sz);
+    }
     p->pagetable = 0;
-  }else{
-      uvmunmap(p->pagetable, TRAPFRAME - (PGSIZE * p->thread_id), 1, 0);
+  }
+  else {
+    // Free the thread trapframe page and decrement the thread counter
+    uvmunmap(p->pagetable, TRAPFRAME - (PGSIZE * p->thread_id), 1, 0);
+    --threadCounter;
   }
 
   p->sz = 0;
@@ -222,7 +216,13 @@ proc_pagetable(struct proc *p)
 
   // map the trapframe page just below the trampoline page, for
   // trampoline.S.
- 
+  if(mappages(pagetable, TRAPFRAME, PGSIZE,
+              (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
+    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    uvmfree(pagetable, 0);
+    return 0;
+  }
+
   return pagetable;
 }
 
@@ -346,6 +346,7 @@ fork(void)
 
   return pid;
 }
+
 static struct proc*
 allocproc_thread(void)
 {
@@ -380,10 +381,11 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  // Assign the thread id and increment the thread counter.
+  p->thread_id = threadCounter++;
+
   return p;
 }
-
-
 
 int //edited
 clone(void* stack)
@@ -392,20 +394,25 @@ clone(void* stack)
   struct proc *np;
   struct proc *p = myproc();
 
+  // Each process has at most 20 threads.
+  if (threadCounter > 20) {
+    return -1;
+  }
+
   // Allocate process.
   if((np = allocproc_thread()) == 0){
     return -1;
   }
     
-    if(stack == 0){
-      return -1;
-    }
+  if(stack == 0){
+    return -1;
+  }
 
-    np->trapframe->sp = (uint64)stack;
-    np->pagetable = p->pagetable;
+  np->trapframe->sp = (uint64)stack;
+  np->pagetable = p->pagetable;
   np->sz = p->sz;
-  
-    if(mappages(np->pagetable, TRAPFRAME - (PGSIZE * np->thread_id), PGSIZE,
+
+  if(mappages(np->pagetable, TRAPFRAME - (PGSIZE * np->thread_id), PGSIZE,
               (uint64)(np->trapframe), PTE_R | PTE_W) < 0){
     uvmunmap(np->pagetable, TRAMPOLINE, 1, 0);
     uvmfree(np->pagetable, 0);
@@ -427,11 +434,6 @@ clone(void* stack)
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
-  //add counter!!!!!!!!
-    np->thread_id = threadCounter; //thread_id for children
-     threadCounter = threadCounter + 1;
-
-  
 
   release(&np->lock);
 
@@ -442,9 +444,15 @@ clone(void* stack)
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
-  if(p->thread_id == 0) return 0;
-  return pid;
+
+  // Return the thread id to the parent process, return 0 to the child process.
+  if(p->thread_id == 0) {
+    return pid;
+  }
+
+  return 0;
 }
+
 // Pass p's abandoned children to init.
 // Caller must hold wait_lock.
 void

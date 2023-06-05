@@ -1,5 +1,5 @@
 struct lock_t {
- int locked;
+    uint locked;
 }; 
 
 
