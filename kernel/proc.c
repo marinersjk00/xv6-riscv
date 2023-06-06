@@ -13,7 +13,7 @@ struct proc proc[NPROC];
 struct proc *initproc;
 
 // Thread counter begins at 1 because the parent process is also a thread.
-int threadCounter = 1;
+//int threadCounter = 1;
 int nextpid = 1;
 struct spinlock pid_lock;
 
@@ -152,7 +152,8 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-  p->thread_id = 0;
+  p->threadCounter = 0;
+  p->thread_id = p->threadCounter++;
 
   return p;
 }
@@ -175,7 +176,7 @@ freeproc(struct proc *p)
   else {
     // Free the thread trapframe page and decrement the thread counter
     uvmunmap(p->pagetable, TRAPFRAME - (PGSIZE * p->thread_id), 1, 0);
-    --threadCounter;
+    p->threadCounter--;
   }
 
   p->sz = 0;
@@ -351,6 +352,7 @@ static struct proc*
 allocproc_thread(void)
 {
   struct proc *p;
+  struct proc *parent = myproc();
 
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
@@ -382,7 +384,7 @@ found:
   p->context.sp = p->kstack + PGSIZE;
 
   // Assign the thread id and increment the thread counter.
-  p->thread_id = threadCounter++;
+  p->thread_id = parent->threadCounter++;
 
   return p;
 }
@@ -395,7 +397,7 @@ clone(void* stack)
   struct proc *p = myproc();
 
   // Each process has at most 20 threads.
-  if (threadCounter > 20) {
+  if (p->threadCounter > 20) {
     return -1;
   }
 
