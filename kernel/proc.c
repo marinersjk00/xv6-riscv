@@ -396,12 +396,12 @@ clone(void* stack)
   struct proc *np;
   struct proc *p = myproc();
 
-  // Each process has at most 20 threads.
+  // Each process has at most 20 threads
   if (p->threadCounter > 20) {
     return -1;
   }
 
-  // Allocate process.
+  // Allocate thread
   if((np = allocproc_thread()) == 0){
     return -1;
   }
